@@ -1,5 +1,6 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
 use bevy_pixels::prelude::*;
+use portal_common::define::Color;
 use portal_common::prelude::*;
 use rand::prelude::*;
 
