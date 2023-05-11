@@ -61,15 +61,25 @@ fn handle_input(
             .and_then(|cursor| camera.viewport_to_world_2d(global_transform, cursor))
         {
             let rounded_pos = world_position.round().as_ivec2();
-            // let mut round_x = (rounded_pos.x / GRID_SIZE) as i32;
-            // let mut round_y = (rounded_pos.y / GRID_SIZE) as i32;
-            // round_x = ((round_x + 4) >> 3) << 3;
-            // round_y = ((round_y + 4) >> 3) << 3; //nearest 8th
-            // let rounded_pos = IVec2::new(round_x, round_y);
 
             match editor_state.mode {
                 EditMode::Pan => {}
                 EditMode::Add => {
+                    let lean = 10.0;
+                    if buttons.just_pressed(MouseButton::Right) {
+                        let copied_array = editor_state.points.clone();
+                        for (idx, point) in copied_array.iter().enumerate() {
+                            if rounded_pos.x as f32 >= point.x as f32 - lean
+                                && rounded_pos.x as f32 <= point.x as f32 + lean
+                                && rounded_pos.y as f32 >= point.y as f32 - lean
+                                && rounded_pos.y as f32 <= point.y as f32 + lean
+                            {
+                                if idx == copied_array.len() - 1 {
+                                    editor_state.points.remove(idx);
+                                }
+                            }
+                        }
+                    }
                     if buttons.just_pressed(MouseButton::Left) {
                         let len = editor_state.points.len();
                         if editor_state.points.is_empty() {
@@ -82,7 +92,6 @@ fn handle_input(
                             editor_state.points.push(rounded_pos);
                         } else {
                             // if let Some(last) = editor_state.points.last() {
-                            let lean = 10.0;
                             let point = editor_state.points[0].clone();
                             if rounded_pos.x as f32 >= point.x as f32 - lean
                                 && rounded_pos.x as f32 <= point.x as f32 + lean
