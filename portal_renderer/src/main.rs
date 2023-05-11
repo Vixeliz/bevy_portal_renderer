@@ -1,85 +1,10 @@
-use std::cmp::Ordering;
-
-use bevy::{ecs::system::SystemParam, prelude::*, utils::FloatOrd};
+use bevy::{ecs::system::SystemParam, prelude::*};
 use bevy_pixels::prelude::*;
+use portal_common::prelude::*;
 use rand::prelude::*;
-
-#[derive(Clone, Copy)]
-struct Wall {
-    points: [Vec2; 2],
-    color: Color, // height: f32,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Surface {
-    Top,
-    Bottom,
-    Normal,
-    TopReverse,
-    BottomReverse,
-}
-
-struct Sector {
-    walls: Vec<Wall>,
-    center: Vec2,
-    depth: f32,
-    roof: f32, // Top and bottom height of walls
-    floor: f32,
-    roof_col: Color,
-    floor_col: Color,
-    surface: Surface,
-}
-
-impl Ord for Sector {
-    fn cmp(&self, other: &Self) -> Ordering {
-        FloatOrd(self.depth).cmp(&FloatOrd(other.depth))
-    }
-}
-
-impl PartialOrd for Sector {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl PartialEq for Sector {
-    fn eq(&self, other: &Self) -> bool {
-        self.depth == other.depth
-    }
-}
-
-impl Eq for Sector {}
-
-impl Sector {
-    fn new(floor: f32, roof: f32) -> Self {
-        Self {
-            roof,
-            floor,
-            depth: 0.0,
-            center: Vec2::ZERO,
-            walls: Vec::default(),
-            roof_col: Color(0, 0, 255, 255),
-            floor_col: Color(0, 255, 0, 255),
-            surface: Surface::Normal,
-        }
-    }
-
-    fn add_wall(&mut self, bottom_one: Vec2, bottom_two: Vec2, color: Color) {
-        self.walls.push(Wall {
-            points: [bottom_one, bottom_two],
-            color,
-        });
-    }
-}
-
-#[derive(Resource, Default, Deref, DerefMut)]
-struct Sectors(Vec<Sector>);
 
 #[derive(Component)]
 struct Viewpoint;
-
-#[derive(Component, Debug, Clone, Copy)]
-struct Color(u8, u8, u8, u8);
 
 #[derive(SystemParam)]
 struct PixelHandler<'w, 's> {
@@ -114,7 +39,8 @@ impl<'w, 's> PixelHandler<'w, 's> {
             let frame_width_bytes = (options.width * 4) as usize;
             let frame: &mut [u8] = wrapper.pixels.frame_mut();
             let x_offset = (position.x * 4) as usize;
-            let y_offset = position.y as usize * frame_width_bytes;
+            let final_y = position.y as i32 - options.height as i32;
+            let y_offset = final_y.abs() as usize * frame_width_bytes;
             let i = x_offset + y_offset;
             let j = i + 4;
             frame[i..j].copy_from_slice(&[color.0, color.1, color.2, color.3]);
@@ -152,7 +78,7 @@ fn clear(mut pixel_handler: PixelHandler) {
 
 fn setup(mut commands: Commands) {
     commands.spawn((Transform::from_xyz(70.0, 20.0, -110.0), Viewpoint));
-    let mut sectors = Sectors::default();
+    let mut level = Level::default();
     let mut sector = Sector::new(0.0, 10.0);
     sector.add_wall(
         Vec2::new(0.0, 25.0),
@@ -174,7 +100,7 @@ fn setup(mut commands: Commands) {
         Vec2::new(25.0, 0.0),
         Color(100, 100, 100, 255),
     );
-    sectors.push(sector);
+    level.sectors.push(sector);
     let mut sector = Sector::new(10.0, 40.0);
     sector.add_wall(
         Vec2::new(30.0, 50.0),
@@ -196,8 +122,8 @@ fn setup(mut commands: Commands) {
         Vec2::new(50.0, 30.0),
         Color(255, 0, 0, 255),
     );
-    sectors.push(sector);
-    commands.insert_resource(sectors);
+    level.sectors.push(sector);
+    commands.spawn(level);
 }
 
 fn move_player(
@@ -225,11 +151,11 @@ fn move_player(
             transform.translation += right * dt * speed;
         }
         if keys.pressed(KeyCode::Space) {
-            transform.translation.y -= 4.0 * dt * speed;
+            transform.translation.y += 4.0 * dt * speed;
         }
 
         if keys.pressed(KeyCode::C) {
-            transform.translation.y += 4.0 * dt * speed;
+            transform.translation.y -= 4.0 * dt * speed;
         }
 
         if keys.pressed(KeyCode::Right) {
@@ -241,11 +167,11 @@ fn move_player(
         }
 
         // if keys.pressed(KeyCode::Up) {
-        //     transform.rotate_x(0.05);
+        //     transform.rotate_x(-0.05);
         // }
 
         // if keys.pressed(KeyCode::Down) {
-        //     transform.rotate_x(-0.05);
+        //     transform.rotate_x(0.05);
         // }
     }
 }
@@ -253,138 +179,141 @@ fn move_player(
 fn draw(
     mut pixel_handler: PixelHandler,
     player_query: Query<&Transform, With<Viewpoint>>,
-    mut sectors: ResMut<Sectors>,
+    // mut sectors: ResMut<Sectors>,
+    mut level_query: Query<&mut Level>,
 ) {
     if let Ok(transform) = player_query.get_single() {
         let (angle_up, angle, _) = transform.rotation.to_euler(EulerRot::XYZ);
         let player_cos = angle.cos();
         let player_sin = angle.sin();
-        bubble_sort(&mut sectors);
-        sectors.reverse();
-        for sector in sectors.iter_mut() {
-            let mut x_points = vec![0; pixel_handler.width() as usize];
-            sector.depth = 0.0;
-            if transform.translation.y < sector.floor {
-                sector.surface = Surface::Bottom;
-            } else if transform.translation.y > sector.roof {
-                sector.surface = Surface::Top;
-            } else {
-                sector.surface = Surface::Normal;
-            }
-            for i in 0..2 {
-                for wall in sector.walls.iter() {
-                    let mut local_wall = [Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)];
-
-                    // Offset bottom two points of wall by player position
-                    let mut x1 = wall.points[0].x - transform.translation.x;
-                    let mut z1 = wall.points[0].y - transform.translation.z;
-                    let mut x2 = wall.points[1].x - transform.translation.x;
-                    let mut z2 = wall.points[1].y - transform.translation.z;
-
-                    if i == 0 {
-                        let mut swp = x1;
-                        x1 = x2;
-                        x2 = swp;
-                        swp = z1;
-                        z1 = z2;
-                        z2 = swp;
-                    }
-
-                    local_wall[0].x = x1 * player_cos - z1 * player_sin;
-                    local_wall[1].x = x2 * player_cos - z2 * player_sin;
-
-                    local_wall[0].z = z1 * player_cos + x1 * player_sin;
-                    local_wall[1].z = z2 * player_cos + x2 * player_sin;
-
-                    local_wall[0].y = sector.floor - transform.translation.y
-                        + (angle_up.to_degrees() * local_wall[0].z / 32.0);
-                    local_wall[1].y = sector.floor - transform.translation.y
-                        + (angle_up.to_degrees() * local_wall[1].z / 32.0);
-
-                    let top_y1 = sector.roof - transform.translation.y
-                        + (angle_up.to_degrees() * local_wall[0].z / 32.0);
-                    let top_y2 = sector.roof - transform.translation.y
-                        + (angle_up.to_degrees() * local_wall[1].z / 32.0);
-
-                    sector.depth += Vec2::ZERO.distance(Vec2::new(
-                        (local_wall[0].x + local_wall[1].x) / 2.0,
-                        (local_wall[0].z + local_wall[1].z) / 2.0,
-                    ));
-
-                    if local_wall[0].z < 1.0 && local_wall[1].z < 1.0 {
-                        continue;
-                    }
-
-                    let mut b1 = IVec3::new(
-                        local_wall[0].x as i32,
-                        local_wall[0].y as i32,
-                        local_wall[0].z as i32,
-                    );
-                    let mut b2 = IVec3::new(
-                        local_wall[1].x as i32,
-                        local_wall[1].y as i32,
-                        local_wall[1].z as i32,
-                    );
-                    let mut t1 = IVec3::new(
-                        local_wall[0].x as i32,
-                        top_y1 as i32,
-                        local_wall[0].z as i32,
-                    );
-                    let mut t2 = IVec3::new(
-                        local_wall[1].x as i32,
-                        top_y2 as i32,
-                        local_wall[1].z as i32,
-                    );
-
-                    if local_wall[0].z < 1.0 {
-                        clip_behind(&mut b1, &mut b2);
-                        clip_behind(&mut t1, &mut t2);
-                    }
-
-                    if local_wall[1].z < 1.0 {
-                        clip_behind(&mut b2, &mut b1);
-                        clip_behind(&mut t2, &mut t1);
-                    }
-
-                    let (scr_x1, scr_y1) = (
-                        b1.x as f32 * 200.0 / b1.z as f32 + (pixel_handler.width() / 2) as f32,
-                        b1.y as f32 * 200.0 / b1.z as f32 + (pixel_handler.height() / 2) as f32,
-                    );
-
-                    let (scr_x2, scr_y2) = (
-                        b2.x as f32 * 200.0 / b2.z as f32 + (pixel_handler.width() / 2) as f32,
-                        b2.y as f32 * 200.0 / b2.z as f32 + (pixel_handler.height() / 2) as f32,
-                    );
-
-                    let (_, scr_y3) = (
-                        t1.x as f32 * 200.0 / t1.z as f32 + (pixel_handler.width() / 2) as f32,
-                        t1.y as f32 * 200.0 / t1.z as f32 + (pixel_handler.height() / 2) as f32,
-                    );
-
-                    let (_, scr_y4) = (
-                        t2.x as f32 * 200.0 / t2.z as f32 + (pixel_handler.width() / 2) as f32,
-                        t2.y as f32 * 200.0 / t2.z as f32 + (pixel_handler.height() / 2) as f32,
-                    );
-
-                    draw_wall(
-                        IVec3::new(scr_x1 as i32, scr_y1 as i32, scr_y3 as i32),
-                        IVec3::new(scr_x2 as i32, scr_y2 as i32, scr_y4 as i32),
-                        &mut pixel_handler,
-                        wall.color,
-                        sector.surface,
-                        (sector.roof_col, sector.floor_col),
-                        &mut x_points,
-                    );
+        if let Some(mut level) = level_query.iter_mut().next() {
+            bubble_sort(&mut level.sectors);
+            level.sectors.reverse();
+            for sector in level.sectors.iter_mut() {
+                let mut x_points = vec![0; pixel_handler.width() as usize];
+                sector.depth = 0.0;
+                if transform.translation.y < sector.floor {
+                    sector.surface = Surface::Bottom;
+                } else if transform.translation.y > sector.roof {
+                    sector.surface = Surface::Top;
+                } else {
+                    sector.surface = Surface::Normal;
                 }
-                sector.depth /= sector.walls.len() as f32;
-                match sector.surface {
-                    Surface::Top => {
-                        sector.surface = Surface::TopReverse;
+                for i in 0..2 {
+                    for wall in sector.walls.iter() {
+                        let mut local_wall = [Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)];
+
+                        // Offset bottom two points of wall by player position
+                        let mut x1 = wall.points[0].x - transform.translation.x;
+                        let mut z1 = wall.points[0].y - transform.translation.z;
+                        let mut x2 = wall.points[1].x - transform.translation.x;
+                        let mut z2 = wall.points[1].y - transform.translation.z;
+
+                        if i == 0 {
+                            let mut swp = x1;
+                            x1 = x2;
+                            x2 = swp;
+                            swp = z1;
+                            z1 = z2;
+                            z2 = swp;
+                        }
+
+                        local_wall[0].x = x1 * player_cos - z1 * player_sin;
+                        local_wall[1].x = x2 * player_cos - z2 * player_sin;
+
+                        local_wall[0].z = z1 * player_cos + x1 * player_sin;
+                        local_wall[1].z = z2 * player_cos + x2 * player_sin;
+
+                        local_wall[0].y = sector.floor - transform.translation.y
+                            + (angle_up.to_degrees() * local_wall[0].z / 32.0);
+                        local_wall[1].y = sector.floor - transform.translation.y
+                            + (angle_up.to_degrees() * local_wall[1].z / 32.0);
+
+                        let top_y1 = sector.roof - transform.translation.y
+                            + (angle_up.to_degrees() * local_wall[0].z / 32.0);
+                        let top_y2 = sector.roof - transform.translation.y
+                            + (angle_up.to_degrees() * local_wall[1].z / 32.0);
+
+                        sector.depth += Vec2::ZERO.distance(Vec2::new(
+                            (local_wall[0].x + local_wall[1].x) / 2.0,
+                            (local_wall[0].z + local_wall[1].z) / 2.0,
+                        ));
+
+                        if local_wall[0].z < 1.0 && local_wall[1].z < 1.0 {
+                            continue;
+                        }
+
+                        let mut b1 = IVec3::new(
+                            local_wall[0].x as i32,
+                            local_wall[0].y as i32,
+                            local_wall[0].z as i32,
+                        );
+                        let mut b2 = IVec3::new(
+                            local_wall[1].x as i32,
+                            local_wall[1].y as i32,
+                            local_wall[1].z as i32,
+                        );
+                        let mut t1 = IVec3::new(
+                            local_wall[0].x as i32,
+                            top_y1 as i32,
+                            local_wall[0].z as i32,
+                        );
+                        let mut t2 = IVec3::new(
+                            local_wall[1].x as i32,
+                            top_y2 as i32,
+                            local_wall[1].z as i32,
+                        );
+
+                        if local_wall[0].z < 1.0 {
+                            clip_behind(&mut b1, &mut b2);
+                            clip_behind(&mut t1, &mut t2);
+                        }
+
+                        if local_wall[1].z < 1.0 {
+                            clip_behind(&mut b2, &mut b1);
+                            clip_behind(&mut t2, &mut t1);
+                        }
+
+                        let (scr_x1, scr_y1) = (
+                            b1.x as f32 * 200.0 / b1.z as f32 + (pixel_handler.width() / 2) as f32,
+                            b1.y as f32 * 200.0 / b1.z as f32 + (pixel_handler.height() / 2) as f32,
+                        );
+
+                        let (scr_x2, scr_y2) = (
+                            b2.x as f32 * 200.0 / b2.z as f32 + (pixel_handler.width() / 2) as f32,
+                            b2.y as f32 * 200.0 / b2.z as f32 + (pixel_handler.height() / 2) as f32,
+                        );
+
+                        let (_, scr_y3) = (
+                            t1.x as f32 * 200.0 / t1.z as f32 + (pixel_handler.width() / 2) as f32,
+                            t1.y as f32 * 200.0 / t1.z as f32 + (pixel_handler.height() / 2) as f32,
+                        );
+
+                        let (_, scr_y4) = (
+                            t2.x as f32 * 200.0 / t2.z as f32 + (pixel_handler.width() / 2) as f32,
+                            t2.y as f32 * 200.0 / t2.z as f32 + (pixel_handler.height() / 2) as f32,
+                        );
+
+                        draw_wall(
+                            IVec3::new(scr_x1 as i32, scr_y1 as i32, scr_y3 as i32),
+                            IVec3::new(scr_x2 as i32, scr_y2 as i32, scr_y4 as i32),
+                            &mut pixel_handler,
+                            wall.color,
+                            sector.surface,
+                            (sector.roof_col, sector.floor_col),
+                            &mut x_points,
+                        );
                     }
-                    Surface::Bottom => {
-                        sector.surface = Surface::BottomReverse;
+                    sector.depth /= sector.walls.len() as f32;
+                    match sector.surface {
+                        Surface::Top => {
+                            sector.surface = Surface::TopReverse;
+                        }
+                        Surface::Bottom => {
+                            sector.surface = Surface::BottomReverse;
+                        }
+                        _ => {}
                     }
-                    _ => {}
                 }
             }
         }
