@@ -1,11 +1,20 @@
-[package]
-name = "doom_renderer"
-version = "0.1.0"
-edition = "2021"
+[workspace]
+members = [
+  "portal_renderer",
+  "portal_editor",
+  "portal_common"
+]
+resolver = "2"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[workspace.dependencies]
+bevy = "0.10.1"
 
-[dependencies]
-bevy = { version="0.10.1", default_features=false }
-bevy_pixels = {version="0.10.0", features=["wayland"]}
-rand = "0.8.5"
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+opt-level = 3
+lto = true #Change this to be per platform windows doesn't seem to like it
