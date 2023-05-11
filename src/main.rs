@@ -10,12 +10,24 @@ struct Wall {
     color: Color, // height: f32,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Surface {
+    Top,
+    Bottom,
+    Normal,
+    TopReverse,
+    BottomReverse,
+}
+
 struct Sector {
     walls: Vec<Wall>,
     center: Vec2,
     depth: f32,
     roof: f32, // Top and bottom height of walls
     floor: f32,
+    roof_col: Color,
+    floor_col: Color,
+    surface: Surface,
 }
 
 impl Ord for Sector {
@@ -46,6 +58,9 @@ impl Sector {
             depth: 0.0,
             center: Vec2::ZERO,
             walls: Vec::default(),
+            roof_col: Color(0, 0, 255, 255),
+            floor_col: Color(0, 255, 0, 255),
+            surface: Surface::Normal,
         }
     }
 
@@ -247,7 +262,15 @@ fn draw(
         bubble_sort(&mut sectors);
         sectors.reverse();
         for sector in sectors.iter_mut() {
+            let mut x_points = vec![0; pixel_handler.width() as usize];
             sector.depth = 0.0;
+            if transform.translation.y < sector.floor {
+                sector.surface = Surface::Bottom;
+            } else if transform.translation.y > sector.roof {
+                sector.surface = Surface::Top;
+            } else {
+                sector.surface = Surface::Normal;
+            }
             for i in 0..2 {
                 for wall in sector.walls.iter() {
                     let mut local_wall = [Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)];
@@ -348,9 +371,21 @@ fn draw(
                         IVec3::new(scr_x2 as i32, scr_y2 as i32, scr_y4 as i32),
                         &mut pixel_handler,
                         wall.color,
+                        sector.surface,
+                        (sector.roof_col, sector.floor_col),
+                        &mut x_points,
                     );
                 }
                 sector.depth /= sector.walls.len() as f32;
+                match sector.surface {
+                    Surface::Top => {
+                        sector.surface = Surface::TopReverse;
+                    }
+                    Surface::Bottom => {
+                        sector.surface = Surface::BottomReverse;
+                    }
+                    _ => {}
+                }
             }
         }
     }
@@ -390,6 +425,9 @@ fn draw_wall(
     position_two: IVec3,
     pixel_handler: &mut PixelHandler,
     color: Color,
+    surface: Surface,
+    (roof_col, floor_col): (Color, Color),
+    x_points: &mut Vec<i32>,
 ) {
     let mut position_one = position_one.clone();
     let mut position_two = position_two.clone();
@@ -416,7 +454,6 @@ fn draw_wall(
         if position_two.x > (pixel_handler.width() - 1) as i32 {
             position_two.x = (pixel_handler.width() - 1) as i32;
         }
-
         for x in position_one.x..position_two.x {
             let mut y1 = dyb * (x - position_one.x) / dx + position_one.y;
             let mut y2 = dzb * (x - position_one.x) / dx + position_one.z;
@@ -435,6 +472,25 @@ fn draw_wall(
 
             if y2 > (pixel_handler.height() - 1) as i32 {
                 y2 = (pixel_handler.height() - 1) as i32;
+            }
+
+            if surface == Surface::Bottom {
+                x_points.insert(x as usize, y1);
+                continue;
+            }
+            if surface == Surface::Top {
+                x_points.insert(x as usize, y2);
+                continue;
+            }
+            if surface == Surface::BottomReverse {
+                for i in x_points[x as usize]..y1 {
+                    pixel_handler.set_pixel(UVec2::new(x as u32, i as u32), floor_col);
+                }
+            }
+            if surface == Surface::TopReverse {
+                for i in y2..x_points[x as usize] {
+                    pixel_handler.set_pixel(UVec2::new(x as u32, i as u32), roof_col);
+                }
             }
 
             for y in y1..y2 {
