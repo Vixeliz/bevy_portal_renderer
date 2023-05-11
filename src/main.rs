@@ -138,8 +138,8 @@ fn setup_pixel_options(mut options_query: Query<&mut PixelsOptions>) {
     let Ok(mut options) = options_query.get_single_mut() else { return };
 
     *options = PixelsOptions {
-        width: 320,
-        height: 240,
+        width: 160,
+        height: 120,
         // scale_factor: f32,
         auto_resize_buffer: false,
         ..default()
@@ -153,7 +153,7 @@ fn clear(mut pixel_handler: PixelHandler) {
 fn setup(mut commands: Commands) {
     commands.spawn((Transform::from_xyz(70.0, 20.0, -110.0), Viewpoint));
     let mut sectors = Sectors::default();
-    let mut sector = Sector::new(10.0, 40.0);
+    let mut sector = Sector::new(0.0, 10.0);
     sector.add_wall(
         Vec2::new(0.0, 25.0),
         Vec2::new(0.0, 0.0),
