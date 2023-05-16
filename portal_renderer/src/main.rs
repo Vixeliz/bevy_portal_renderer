@@ -98,8 +98,8 @@ fn setup_pixel_options(mut options_query: Query<&mut PixelsOptions>) {
     let Ok(mut options) = options_query.get_single_mut() else { return };
 
     *options = PixelsOptions {
-        width: 160,
-        height: 120,
+        width: 320,
+        height: 240,
         // scale_factor: f32,
         auto_resize_buffer: false,
         ..default()
@@ -220,6 +220,10 @@ fn draw(
         let (angle_up, angle, _) = transform.rotation.to_euler(EulerRot::XYZ);
         let player_cos = angle.cos();
         let player_sin = angle.sin();
+        // println!(
+        //     "cos: {player_cos}, sin: {player_sin}, degrees: {}",
+        //     angle.to_degrees()
+        // );
         if let Some(mut level) = level_query.iter_mut().next() {
             bubble_sort(&mut level.sectors);
             level.sectors.reverse();
@@ -269,8 +273,8 @@ fn draw(
                             + (angle_up.to_degrees() * local_wall[1].z / 32.0);
 
                         sector.depth += Vec2::ZERO.distance(Vec2::new(
-                            (local_wall[0].x + local_wall[1].x) / 2.0,
-                            (local_wall[0].z + local_wall[1].z) / 2.0,
+                            (local_wall[0].x + local_wall[0].z) / 2.0,
+                            (local_wall[1].x + local_wall[1].x) / 2.0,
                         ));
 
                         if local_wall[0].z < 1.0 && local_wall[1].z < 1.0 {
