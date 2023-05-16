@@ -1,6 +1,5 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
 use bevy_pixels::prelude::*;
-use portal_common::define::Color;
 use portal_common::prelude::*;
 use rand::prelude::*;
 
@@ -15,7 +14,7 @@ struct PixelHandler<'w, 's> {
 }
 
 impl<'w, 's> PixelHandler<'w, 's> {
-    fn clear(&mut self, color: Color) {
+    fn clear(&mut self, color: PixColor) {
         let Ok(mut wrapper) = self.pixel_wrapper.get_single_mut() else { return };
 
         let frame = wrapper.pixels.frame_mut();
@@ -33,7 +32,7 @@ impl<'w, 's> PixelHandler<'w, 's> {
         options.width
     }
 
-    fn set_pixel(&mut self, position: UVec2, color: Color) {
+    fn set_pixel(&mut self, position: UVec2, color: PixColor) {
         let Ok(options) = self.options_query.get_single() else { return };
         if position.x < options.width && position.y < options.height {
             let Ok(mut wrapper) = self.pixel_wrapper.get_single_mut() else { return };
@@ -74,7 +73,7 @@ fn setup_pixel_options(mut options_query: Query<&mut PixelsOptions>) {
 }
 
 fn clear(mut pixel_handler: PixelHandler) {
-    pixel_handler.clear(Color(0, 0, 0, 255));
+    pixel_handler.clear(PixColor(0, 0, 0, 255));
 }
 
 fn setup(mut commands: Commands) {
@@ -84,44 +83,44 @@ fn setup(mut commands: Commands) {
     sector.add_wall(
         Vec2::new(0.0, 25.0),
         Vec2::new(0.0, 0.0),
-        Color(128, 128, 128, 255),
+        PixColor(128, 128, 128, 255),
     );
     sector.add_wall(
         Vec2::new(25.0, 25.0),
         Vec2::new(0.0, 25.0),
-        Color(100, 100, 100, 255),
+        PixColor(100, 100, 100, 255),
     );
     sector.add_wall(
         Vec2::new(25.0, 0.0),
         Vec2::new(25.0, 25.0),
-        Color(128, 128, 128, 255),
+        PixColor(128, 128, 128, 255),
     );
     sector.add_wall(
         Vec2::new(0.0, 0.0),
         Vec2::new(25.0, 0.0),
-        Color(100, 100, 100, 255),
+        PixColor(100, 100, 100, 255),
     );
     level.sectors.push(sector);
     let mut sector = Sector::new(10.0, 40.0);
     sector.add_wall(
         Vec2::new(30.0, 50.0),
         Vec2::new(30.0, 30.0),
-        Color(200, 0, 0, 255),
+        PixColor(200, 0, 0, 255),
     );
     sector.add_wall(
         Vec2::new(50.0, 50.0),
         Vec2::new(30.0, 50.0),
-        Color(255, 0, 0, 255),
+        PixColor(255, 0, 0, 255),
     );
     sector.add_wall(
         Vec2::new(50.0, 30.0),
         Vec2::new(50.0, 50.0),
-        Color(200, 0, 0, 255),
+        PixColor(200, 0, 0, 255),
     );
     sector.add_wall(
         Vec2::new(30.0, 30.0),
         Vec2::new(50.0, 30.0),
-        Color(255, 0, 0, 255),
+        PixColor(255, 0, 0, 255),
     );
     level.sectors.push(sector);
     commands.spawn(level);
@@ -354,9 +353,9 @@ fn draw_wall(
     position_one: IVec3,
     position_two: IVec3,
     pixel_handler: &mut PixelHandler,
-    color: Color,
+    color: PixColor,
     surface: Surface,
-    (roof_col, floor_col): (Color, Color),
+    (roof_col, floor_col): (PixColor, PixColor),
     x_points: &mut Vec<i32>,
 ) {
     let mut position_one = position_one.clone();

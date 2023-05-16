@@ -8,6 +8,6 @@ default-run = "portal_renderer"
 
 [dependencies]
 bevy = { version="0.10.1", default_features=false }
-portal_common = {path="../portal_common"}
 bevy_pixels = {version="0.10.0", features=["wayland"]}
+portal_common = {path="../portal_common"}
 rand = "0.8.5"

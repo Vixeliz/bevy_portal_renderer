@@ -107,7 +107,7 @@ fn handle_input(
                                     .for_each(|(a, b)| {
                                         let wall = Wall {
                                             points: [a.as_vec2(), b.as_vec2()],
-                                            color: Color(255, 255, 255, 255),
+                                            color: PixColor(255, 255, 255, 255),
                                         };
                                         sector.walls.push(wall);
                                     });

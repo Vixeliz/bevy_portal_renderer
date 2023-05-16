@@ -1,11 +1,16 @@
 use std::cmp::Ordering;
 
-use bevy::{prelude::*, utils::FloatOrd};
+use bevy::prelude::Component;
+use bevy::prelude::Vec2;
+use bevy::utils::FloatOrd;
+
+#[derive(Component, Debug, Clone, Copy)]
+pub struct PixColor(pub u8, pub u8, pub u8, pub u8);
 
 #[derive(Clone, Copy)]
 pub struct Wall {
     pub points: [Vec2; 2],
-    pub color: Color, // height: f32,
+    pub color: PixColor, // height: f32,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -23,8 +28,8 @@ pub struct Sector {
     pub depth: f32,
     pub roof: f32, // Top and bottom height of walls
     pub floor: f32,
-    pub roof_col: Color,
-    pub floor_col: Color,
+    pub roof_col: PixColor,
+    pub floor_col: PixColor,
     pub surface: Surface,
 }
 
@@ -56,13 +61,13 @@ impl Sector {
             depth: 0.0,
             center: Vec2::ZERO,
             walls: Vec::default(),
-            roof_col: Color(0, 0, 255, 255),
-            floor_col: Color(0, 255, 0, 255),
+            roof_col: PixColor(0, 0, 255, 255),
+            floor_col: PixColor(0, 255, 0, 255),
             surface: Surface::Normal,
         }
     }
 
-    pub fn add_wall(&mut self, bottom_one: Vec2, bottom_two: Vec2, color: Color) {
+    pub fn add_wall(&mut self, bottom_one: Vec2, bottom_two: Vec2, color: PixColor) {
         self.walls.push(Wall {
             points: [bottom_one, bottom_two],
             color,
@@ -74,6 +79,3 @@ impl Sector {
 pub struct Level {
     pub sectors: Vec<Sector>,
 }
-
-#[derive(Component, Debug, Clone, Copy)]
-pub struct Color(pub u8, pub u8, pub u8, pub u8);
