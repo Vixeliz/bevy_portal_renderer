@@ -7,7 +7,6 @@ members = [
 resolver = "2"
 
 [workspace.dependencies]
-bevy = "0.10.1"
 
 [profile.dev]
 opt-level = 1

@@ -1,3 +1,15 @@
+use bevy::a11y::AccessibilityPlugin;
+use bevy::app::PluginGroupBuilder;
+use bevy::core_pipeline::CorePipelinePlugin;
+use bevy::diagnostic::DiagnosticsPlugin;
+use bevy::input::InputPlugin;
+use bevy::log::LogPlugin;
+use bevy::pbr::PbrPlugin;
+use bevy::render::pipelined_rendering::PipelinedRenderingPlugin;
+use bevy::render::RenderPlugin;
+use bevy::sprite::SpritePlugin;
+use bevy::time::TimePlugin;
+use bevy::winit::WinitPlugin;
 use bevy::{ecs::system::SystemParam, prelude::*};
 use bevy_pixels::prelude::*;
 use portal_common::prelude::*;
@@ -48,9 +60,31 @@ impl<'w, 's> PixelHandler<'w, 's> {
     }
 }
 
+pub struct BevyPlugins;
+
+impl PluginGroup for BevyPlugins {
+    fn build(self) -> PluginGroupBuilder {
+        let mut group = PluginGroupBuilder::start::<Self>();
+        group = group
+            .add(LogPlugin::default())
+            .add(TaskPoolPlugin::default())
+            .add(TypeRegistrationPlugin::default())
+            .add(FrameCountPlugin::default())
+            .add(TimePlugin::default())
+            .add(TransformPlugin::default())
+            .add(HierarchyPlugin::default())
+            .add(DiagnosticsPlugin::default())
+            .add(InputPlugin::default())
+            .add(WindowPlugin::default())
+            .add(AccessibilityPlugin)
+            .add(WinitPlugin::default());
+        group
+    }
+}
+
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins)
+        .add_plugins(BevyPlugins)
         .add_plugin(PixelsPlugin::default())
         .add_startup_system(setup_pixel_options)
         .add_startup_system(setup)
