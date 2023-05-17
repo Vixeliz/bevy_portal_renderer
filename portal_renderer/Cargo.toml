@@ -7,7 +7,8 @@ default-run = "portal_renderer"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bevy = { version="0.10.1", default_features=false }
-bevy_pixels = {version="0.10.0", features=["wayland"]}
+bevy = { version="0.10.1" }
+# bevy_pixels = {version="0.10.0", features=["wayland"]}
+bevy_pixel_buffer = {version="0.4", features=["rayon", "egui"]}
 portal_common = {path="../portal_common"}
 rand = "0.8.5"

@@ -1,14 +1,7 @@
 use std::f32::consts::PI;
 
-use bevy::a11y::AccessibilityPlugin;
-use bevy::app::PluginGroupBuilder;
-use bevy::diagnostic::DiagnosticsPlugin;
-use bevy::input::InputPlugin;
-use bevy::log::LogPlugin;
-use bevy::time::TimePlugin;
-use bevy::winit::WinitPlugin;
 use bevy::{ecs::system::SystemParam, prelude::*};
-use bevy_pixels::prelude::*;
+use bevy_pixel_buffer::prelude::*;
 use portal_common::prelude::*;
 
 #[derive(Component)]
@@ -17,89 +10,49 @@ struct Viewpoint;
 #[derive(SystemParam)]
 struct PixelHandler<'w, 's> {
     // commands: Commands<'w, 's>,
-    pixel_wrapper: Query<'w, 's, &'static mut PixelsWrapper>,
-    options_query: Query<'w, 's, &'static PixelsOptions>,
+    pixel_wrapper: QueryPixelBuffer<'w, 's>,
 }
 
 impl<'w, 's> PixelHandler<'w, 's> {
     fn clear(&mut self, color: PixColor) {
-        let Ok(mut wrapper) = self.pixel_wrapper.get_single_mut() else { return };
-
-        let frame = wrapper.pixels.frame_mut();
-
-        frame.copy_from_slice(&[color.0, color.1, color.2, color.3].repeat(frame.len() / 4));
+        self.pixel_wrapper.frame().per_pixel(|_, _| color);
     }
 
-    fn height(&self) -> u32 {
-        let Ok(options) = self.options_query.get_single() else { return 0 };
-        options.height
+    fn height(&mut self) -> u32 {
+        self.pixel_wrapper.frame().size().y
     }
 
-    fn width(&self) -> u32 {
-        let Ok(options) = self.options_query.get_single() else { return 0 };
-        options.width
+    fn width(&mut self) -> u32 {
+        self.pixel_wrapper.frame().size().x
     }
 
     fn set_pixel(&mut self, position: UVec2, color: PixColor) {
-        let Ok(options) = self.options_query.get_single() else { return };
-        if position.x < options.width && position.y < options.height {
-            let Ok(mut wrapper) = self.pixel_wrapper.get_single_mut() else { return };
-            let frame_width_bytes = (options.width * 4) as usize;
-            let frame: &mut [u8] = wrapper.pixels.frame_mut();
-            let x_offset = (position.x * 4) as usize;
-            let final_y = position.y as i32 - options.height as i32;
-            let y_offset = final_y.abs() as usize * frame_width_bytes;
-            let i = x_offset + y_offset;
-            let j = i + 4;
-            frame[i..j].copy_from_slice(&[color.0, color.1, color.2, color.3]);
+        if position.x < self.width() && position.y < self.height() {
+            let final_y = position.y as i32 - self.height() as i32;
+            let final_y = final_y.abs();
+            self.pixel_wrapper
+                .frame()
+                .set(UVec2::new(position.x, final_y as u32), color)
+                .ok();
         }
-    }
-}
-
-pub struct BevyPlugins;
-
-impl PluginGroup for BevyPlugins {
-    fn build(self) -> PluginGroupBuilder {
-        let mut group = PluginGroupBuilder::start::<Self>();
-        group = group
-            .add(LogPlugin::default())
-            .add(TaskPoolPlugin::default())
-            .add(TypeRegistrationPlugin::default())
-            .add(FrameCountPlugin::default())
-            .add(TimePlugin::default())
-            .add(TransformPlugin::default())
-            .add(HierarchyPlugin::default())
-            .add(DiagnosticsPlugin::default())
-            .add(InputPlugin::default())
-            .add(WindowPlugin::default())
-            .add(AccessibilityPlugin)
-            .add(WinitPlugin::default());
-        group
     }
 }
 
 fn main() {
     App::new()
-        .add_plugins(BevyPlugins)
-        .add_plugin(PixelsPlugin::default())
-        .add_startup_system(setup_pixel_options)
+        .add_plugins(DefaultPlugins)
+        .add_plugin(PixelBufferPlugin)
+        .add_startup_system(
+            PixelBufferBuilder::new()
+                .with_size(PixelBufferSize::pixel_size(UVec2::new(4, 4)))
+                .with_fill(Fill::window())
+                .setup(),
+        )
         .add_startup_system(setup)
         .add_system(move_player)
-        .add_system(clear.in_set(PixelsSet::Draw))
-        .add_system(draw.in_set(PixelsSet::Draw))
+        .add_system(clear.before(draw))
+        .add_system(draw)
         .run();
-}
-
-fn setup_pixel_options(mut options_query: Query<&mut PixelsOptions>) {
-    let Ok(mut options) = options_query.get_single_mut() else { return };
-
-    *options = PixelsOptions {
-        width: 320,
-        height: 240,
-        // scale_factor: f32,
-        auto_resize_buffer: false,
-        ..default()
-    };
 }
 
 fn clear(mut pixel_handler: PixelHandler) {
@@ -168,6 +121,7 @@ fn move_player(
         let dt = time.delta_seconds();
         let speed = 50.0;
         let rotation_speed = 25.0;
+        let rotation_speed_up = 15.0;
         let dx = angle.sin();
         let dz = angle.cos();
 
@@ -205,11 +159,11 @@ fn move_player(
         }
 
         if keys.pressed(KeyCode::Up) {
-            local_angle_up -= 0.05 * dt * rotation_speed;
+            local_angle_up -= 0.05 * dt * rotation_speed_up;
         }
 
         if keys.pressed(KeyCode::Down) {
-            local_angle_up += 0.05 * dt * rotation_speed;
+            local_angle_up += 0.05 * dt * rotation_speed_up;
         }
 
         // Wrap around

@@ -1,3 +1,4 @@
+use bevy_pixel_buffer::prelude::*;
 use std::cmp::Ordering;
 
 use bevy::prelude::Component;
@@ -6,6 +7,23 @@ use bevy::utils::FloatOrd;
 
 #[derive(Component, Debug, Clone, Copy)]
 pub struct PixColor(pub u8, pub u8, pub u8, pub u8);
+
+impl From<Pixel> for PixColor {
+    fn from(item: Pixel) -> Self {
+        PixColor(item.r, item.g, item.b, item.a)
+    }
+}
+
+impl From<PixColor> for Pixel {
+    fn from(item: PixColor) -> Self {
+        Pixel {
+            r: item.0,
+            g: item.1,
+            b: item.2,
+            a: item.3,
+        }
+    }
+}
 
 #[derive(Clone, Copy)]
 pub struct Wall {
