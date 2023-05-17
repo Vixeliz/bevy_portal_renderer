@@ -1,19 +1,13 @@
 use bevy::a11y::AccessibilityPlugin;
 use bevy::app::PluginGroupBuilder;
-use bevy::core_pipeline::CorePipelinePlugin;
 use bevy::diagnostic::DiagnosticsPlugin;
 use bevy::input::InputPlugin;
 use bevy::log::LogPlugin;
-use bevy::pbr::PbrPlugin;
-use bevy::render::pipelined_rendering::PipelinedRenderingPlugin;
-use bevy::render::RenderPlugin;
-use bevy::sprite::SpritePlugin;
 use bevy::time::TimePlugin;
 use bevy::winit::WinitPlugin;
 use bevy::{ecs::system::SystemParam, prelude::*};
 use bevy_pixels::prelude::*;
 use portal_common::prelude::*;
-use rand::prelude::*;
 
 #[derive(Component)]
 struct Viewpoint;
@@ -166,7 +160,6 @@ fn move_player(
     time: Res<Time>,
 ) {
     if let Ok(mut transform) = player_query.get_single_mut() {
-        let (angle_up, angle, _) = transform.rotation.to_euler(EulerRot::XYZ);
         let dt = time.delta_seconds();
         let forward = transform.forward();
         let right = transform.left();
@@ -218,18 +211,22 @@ fn draw(
 ) {
     if let Ok(transform) = player_query.get_single() {
         let (angle_up, angle, _) = transform.rotation.to_euler(EulerRot::XYZ);
+
         let player_cos = angle.cos();
         let player_sin = angle.sin();
-        // println!(
-        //     "cos: {player_cos}, sin: {player_sin}, degrees: {}",
-        //     angle.to_degrees()
-        // );
+
         if let Some(mut level) = level_query.iter_mut().next() {
+            // Sort the levels sectors from back to front
             bubble_sort(&mut level.sectors);
             level.sectors.reverse();
             for sector in level.sectors.iter_mut() {
+                // Temp vector to hold row of pixels for filling bottom or top
                 let mut x_points = vec![0; pixel_handler.width() as usize];
+
+                // Reset sector depth
                 sector.depth = 0.0;
+
+                // Set what surface we are rendering based off of player location relative to this sector
                 if transform.translation.y < sector.floor {
                     sector.surface = Surface::Bottom;
                 } else if transform.translation.y > sector.roof {
@@ -237,16 +234,25 @@ fn draw(
                 } else {
                     sector.surface = Surface::Normal;
                 }
+
+                // Two loops are needed for filling in top and bottoms
                 for i in 0..2 {
+                    // Loop through the sector walls
                     for wall in sector.walls.iter() {
+                        // Temporary local_wall varibale
                         let mut local_wall = [Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0)];
 
                         // Offset bottom two points of wall by player position
+                        /*
+                            In 3d graphics its more we move the world instead of the camera.
+                            So first we must move all the world using the camera pos
+                        */
                         let mut x1 = wall.points[0].x - transform.translation.x;
                         let mut z1 = wall.points[0].y - transform.translation.z;
                         let mut x2 = wall.points[1].x - transform.translation.x;
                         let mut z2 = wall.points[1].y - transform.translation.z;
 
+                        // If first loop we swap variables
                         if i == 0 {
                             let mut swp = x1;
                             x1 = x2;
@@ -256,12 +262,14 @@ fn draw(
                             z2 = swp;
                         }
 
+                        // Use player rotation to adjust the points of the wall
                         local_wall[0].x = x1 * player_cos - z1 * player_sin;
                         local_wall[1].x = x2 * player_cos - z2 * player_sin;
 
                         local_wall[0].z = z1 * player_cos + x1 * player_sin;
                         local_wall[1].z = z2 * player_cos + x2 * player_sin;
 
+                        // Translate the height based off of the sector, player location, and angle
                         local_wall[0].y = sector.floor - transform.translation.y
                             + (angle_up.to_degrees() * local_wall[0].z / 32.0);
                         local_wall[1].y = sector.floor - transform.translation.y
@@ -272,46 +280,35 @@ fn draw(
                         let top_y2 = sector.roof - transform.translation.y
                             + (angle_up.to_degrees() * local_wall[1].z / 32.0);
 
+                        // Add this walls depth to the sector
                         sector.depth += Vec2::ZERO.distance(Vec2::new(
                             (local_wall[0].x + local_wall[0].z) / 2.0,
                             (local_wall[1].x + local_wall[1].x) / 2.0,
                         ));
 
-                        if local_wall[0].z < 1.0 && local_wall[1].z < 1.0 {
+                        // If the local wall is behind the player we don't draw it
+                        if local_wall[0].z < 0.0 && local_wall[1].z < 0.0 {
                             continue;
                         }
 
-                        let mut b1 = IVec3::new(
-                            local_wall[0].x as i32,
-                            local_wall[0].y as i32,
-                            local_wall[0].z as i32,
-                        );
-                        let mut b2 = IVec3::new(
-                            local_wall[1].x as i32,
-                            local_wall[1].y as i32,
-                            local_wall[1].z as i32,
-                        );
-                        let mut t1 = IVec3::new(
-                            local_wall[0].x as i32,
-                            top_y1 as i32,
-                            local_wall[0].z as i32,
-                        );
-                        let mut t2 = IVec3::new(
-                            local_wall[1].x as i32,
-                            top_y2 as i32,
-                            local_wall[1].z as i32,
-                        );
+                        // New points to use for clipping bottom 1 and 2 and top 1 and 2
+                        let mut b1 = Vec3::new(local_wall[0].x, local_wall[0].y, local_wall[0].z);
+                        let mut b2 = Vec3::new(local_wall[1].x, local_wall[1].y, local_wall[1].z);
+                        let mut t1 = Vec3::new(local_wall[0].x, top_y1, local_wall[0].z);
+                        let mut t2 = Vec3::new(local_wall[1].x, top_y2, local_wall[1].z);
 
-                        if local_wall[0].z < 1.0 {
+                        // Clip walls that are behind player at least partly
+                        if local_wall[0].z < 0.0 {
                             clip_behind(&mut b1, &mut b2);
                             clip_behind(&mut t1, &mut t2);
                         }
 
-                        if local_wall[1].z < 1.0 {
+                        if local_wall[1].z < 0.0 {
                             clip_behind(&mut b2, &mut b1);
                             clip_behind(&mut t2, &mut t1);
                         }
 
+                        // Transform wall to screen coordinates
                         let (scr_x1, scr_y1) = (
                             b1.x as f32 * 200.0 / b1.z as f32 + (pixel_handler.width() / 2) as f32,
                             b1.y as f32 * 200.0 / b1.z as f32 + (pixel_handler.height() / 2) as f32,
@@ -332,6 +329,7 @@ fn draw(
                             t2.y as f32 * 200.0 / t2.z as f32 + (pixel_handler.height() / 2) as f32,
                         );
 
+                        // Finally draw the wall
                         draw_wall(
                             IVec3::new(scr_x1 as i32, scr_y1 as i32, scr_y3 as i32),
                             IVec3::new(scr_x2 as i32, scr_y2 as i32, scr_y4 as i32),
@@ -342,7 +340,10 @@ fn draw(
                             &mut x_points,
                         );
                     }
+                    // Get the average depth
                     sector.depth /= sector.walls.len() as f32;
+
+                    // Reverse the surface for tops or bottoms
                     match sector.surface {
                         Surface::Top => {
                             sector.surface = Surface::TopReverse;
@@ -368,21 +369,26 @@ pub fn bubble_sort<T: Ord>(arr: &mut [T]) {
     }
 }
 
-fn clip_behind(position_one: &mut IVec3, position_two: &mut IVec3) {
+fn clip_behind(position_one: &mut Vec3, position_two: &mut Vec3) {
+    // Store the distance planes which are these two points
     let da = position_one.z;
     let db = position_two.z;
 
+    // Get distance of planes
     let mut d = da - db;
-    if db == 0 {
-        d = 1;
+    // Prevent divide by zero
+    if db == 0.0 {
+        d = 1.0;
     }
 
+    // How much the plane is intersecting ranging from 0 to 1
     let s = da / d;
 
+    // Finally using intersection factor set the points to the appropiate place
     position_one.x += s * (position_two.x - (position_one.x));
     position_one.z += s * (position_two.z - (position_one.z));
-    if position_one.z == 0 {
-        position_one.z = 1;
+    if position_one.z == 0.0 {
+        position_one.z = 1.0;
     }
     position_one.y += s * (position_two.y - (position_one.y));
 }
@@ -399,69 +405,81 @@ fn draw_wall(
     let mut position_one = position_one.clone();
     let mut position_two = position_two.clone();
 
+    // Get distance between points
     if let Some(dyb) = position_two.y.checked_sub(position_one.y) {
-        let dzb = position_two.z - position_one.z;
-        let mut dx = position_two.x - position_one.x;
-        if dx == 0 {
-            dx = 1;
-        }
+        if let Some(dzb) = position_two.z.checked_sub(position_one.z) {
+            let mut dx = position_two.x - position_one.x;
 
-        if position_one.x < 1 {
-            position_one.x = 1;
-        }
-
-        if position_two.x < 1 {
-            position_two.x = 1;
-        }
-
-        if position_one.x > (pixel_handler.width() - 1) as i32 {
-            position_one.x = (pixel_handler.width() - 1) as i32;
-        }
-
-        if position_two.x > (pixel_handler.width() - 1) as i32 {
-            position_two.x = (pixel_handler.width() - 1) as i32;
-        }
-        for x in position_one.x..position_two.x {
-            let mut y1 = dyb * (x - position_one.x) / dx + position_one.y;
-            let mut y2 = dzb * (x - position_one.x) / dx + position_one.z;
-
-            if y1 < 1 {
-                y1 = 1;
+            // Prevent divide by zero
+            if dx == 0 {
+                dx = 1;
             }
 
-            if y2 < 1 {
-                y2 = 1;
+            // Clip sides of screen
+            if position_one.x < 1 {
+                position_one.x = 1;
             }
 
-            if y1 > (pixel_handler.height() - 1) as i32 {
-                y1 = (pixel_handler.height() - 1) as i32;
+            if position_two.x < 1 {
+                position_two.x = 1;
             }
 
-            if y2 > (pixel_handler.height() - 1) as i32 {
-                y2 = (pixel_handler.height() - 1) as i32;
+            if position_one.x > (pixel_handler.width() - 1) as i32 {
+                position_one.x = (pixel_handler.width() - 1) as i32;
             }
 
-            if surface == Surface::Bottom {
-                x_points.insert(x as usize, y1);
-                continue;
+            if position_two.x > (pixel_handler.width() - 1) as i32 {
+                position_two.x = (pixel_handler.width() - 1) as i32;
             }
-            if surface == Surface::Top {
-                x_points.insert(x as usize, y2);
-                continue;
-            }
-            if surface == Surface::BottomReverse {
-                for i in x_points[x as usize]..y1 {
-                    pixel_handler.set_pixel(UVec2::new(x as u32, i as u32), floor_col);
+
+            // Loop over the lines we have to draw for this wall
+            for x in position_one.x..position_two.x {
+                // Get screen y from the distances
+                let mut y1 = dyb * (x - position_one.x) / dx + position_one.y;
+                let mut y2 = dzb * (x - position_one.x) / dx + position_one.z;
+
+                // Clip top and bottom of screen
+                if y1 < 1 {
+                    y1 = 1;
                 }
-            }
-            if surface == Surface::TopReverse {
-                for i in y2..x_points[x as usize] {
-                    pixel_handler.set_pixel(UVec2::new(x as u32, i as u32), roof_col);
-                }
-            }
 
-            for y in y1..y2 {
-                pixel_handler.set_pixel(UVec2::new(x as u32, y as u32), color);
+                if y2 < 1 {
+                    y2 = 1;
+                }
+
+                if y1 > (pixel_handler.height() - 1) as i32 {
+                    y1 = (pixel_handler.height() - 1) as i32;
+                }
+
+                if y2 > (pixel_handler.height() - 1) as i32 {
+                    y2 = (pixel_handler.height() - 1) as i32;
+                }
+
+                // Handle surfaces for top and bottom on first pass we save the points but don't draw
+                // second pass we actually draw
+                if surface == Surface::Bottom {
+                    x_points.insert(x as usize, y1);
+                    continue;
+                }
+                if surface == Surface::Top {
+                    x_points.insert(x as usize, y2);
+                    continue;
+                }
+                if surface == Surface::BottomReverse {
+                    for i in x_points[x as usize]..y1 {
+                        pixel_handler.set_pixel(UVec2::new(x as u32, i as u32), floor_col);
+                    }
+                }
+                if surface == Surface::TopReverse {
+                    for i in y2..x_points[x as usize] {
+                        pixel_handler.set_pixel(UVec2::new(x as u32, i as u32), roof_col);
+                    }
+                }
+
+                // Finally always draw the normal wall
+                for y in y1..y2 {
+                    pixel_handler.set_pixel(UVec2::new(x as u32, y as u32), color);
+                }
             }
         }
     }
