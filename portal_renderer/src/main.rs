@@ -385,81 +385,80 @@ fn draw_wall(
     let mut position_two = position_two.clone();
 
     // Get distance between points
-    if let Some(dyb) = position_two.y.checked_sub(position_one.y) {
-        if let Some(dzb) = position_two.z.checked_sub(position_one.z) {
-            if let Some(mut dx) = position_two.x.checked_sub(position_one.x) {
-                // Prevent divide by zero
-                if dx == 0 {
-                    dx = 1;
-                }
+    let dyb = position_two.y.wrapping_sub(position_one.y);
+    let dzb = position_two.z.wrapping_sub(position_one.z);
+    let mut dx = position_two.x.wrapping_sub(position_one.x);
 
-                // Clip sides of screen
-                if position_one.x < 1 {
-                    position_one.x = 1;
-                }
+    // Prevent divide by zero
+    if dx == 0 {
+        dx = 1;
+    }
 
-                if position_two.x < 1 {
-                    position_two.x = 1;
-                }
+    // Clip sides of screen
+    if position_one.x < 1 {
+        position_one.x = 1;
+    }
 
-                if position_one.x > (pixel_handler.width() - 1) as i32 {
-                    position_one.x = (pixel_handler.width() - 1) as i32;
-                }
+    if position_two.x < 1 {
+        position_two.x = 1;
+    }
 
-                if position_two.x > (pixel_handler.width() - 1) as i32 {
-                    position_two.x = (pixel_handler.width() - 1) as i32;
-                }
+    if position_one.x > (pixel_handler.width() - 1) as i32 {
+        position_one.x = (pixel_handler.width() - 1) as i32;
+    }
 
-                // Loop over the lines we have to draw for this wall
-                for x in position_one.x..position_two.x {
-                    // Get screen y from the distances
-                    let mut y1 = dyb * (x - position_one.x) / dx + position_one.y;
-                    let mut y2 = dzb * (x - position_one.x) / dx + position_one.z;
+    if position_two.x > (pixel_handler.width() - 1) as i32 {
+        position_two.x = (pixel_handler.width() - 1) as i32;
+    }
 
-                    // Clip top and bottom of screen
-                    if y1 < 1 {
-                        y1 = 1;
-                    }
+    // Loop over the lines we have to draw for this wall
+    for x in position_one.x..position_two.x {
+        // Get screen y from the distances
+        let mut y1 = (dyb as i64 * (x as i64 - position_one.x as i64) / dx as i64
+            + position_one.y as i64) as i32;
+        let mut y2 = (dzb as i64 * (x as i64 - position_one.x as i64) / dx as i64
+            + position_one.z as i64) as i32;
+        // Clip top and bottom of screen
+        if y1 < 1 {
+            y1 = 1;
+        }
 
-                    if y2 < 1 {
-                        y2 = 1;
-                    }
+        if y2 < 1 {
+            y2 = 1;
+        }
 
-                    if y1 > (pixel_handler.height() - 1) as i32 {
-                        y1 = (pixel_handler.height() - 1) as i32;
-                    }
+        if y1 > (pixel_handler.height() - 1) as i32 {
+            y1 = (pixel_handler.height() - 1) as i32;
+        }
 
-                    if y2 > (pixel_handler.height() - 1) as i32 {
-                        y2 = (pixel_handler.height() - 1) as i32;
-                    }
+        if y2 > (pixel_handler.height() - 1) as i32 {
+            y2 = (pixel_handler.height() - 1) as i32;
+        }
 
-                    // Handle surfaces for top and bottom on first pass we save the points but don't draw
-                    // second pass we actually draw
-                    if surface == Surface::Bottom {
-                        x_points.insert(x as usize, y1);
-                        continue;
-                    }
-                    if surface == Surface::Top {
-                        x_points.insert(x as usize, y2);
-                        continue;
-                    }
-                    if surface == Surface::BottomReverse {
-                        for i in x_points[x as usize]..y1 {
-                            pixel_handler.set_pixel(UVec2::new(x as u32, i as u32), floor_col);
-                        }
-                    }
-                    if surface == Surface::TopReverse {
-                        for i in y2..x_points[x as usize] {
-                            pixel_handler.set_pixel(UVec2::new(x as u32, i as u32), roof_col);
-                        }
-                    }
-
-                    // Finally always draw the normal wall
-                    for y in y1..y2 {
-                        pixel_handler.set_pixel(UVec2::new(x as u32, y as u32), color);
-                    }
-                }
+        // Handle surfaces for top and bottom on first pass we save the points but don't draw
+        // second pass we actually draw
+        if surface == Surface::Bottom {
+            x_points.insert(x as usize, y1);
+            continue;
+        }
+        if surface == Surface::Top {
+            x_points.insert(x as usize, y2);
+            continue;
+        }
+        if surface == Surface::BottomReverse {
+            for i in x_points[x as usize]..y1 {
+                pixel_handler.set_pixel(UVec2::new(x as u32, i as u32), floor_col);
             }
+        }
+        if surface == Surface::TopReverse {
+            for i in y2..x_points[x as usize] {
+                pixel_handler.set_pixel(UVec2::new(x as u32, i as u32), roof_col);
+            }
+        }
+
+        // Finally always draw the normal wall
+        for y in y1..y2 {
+            pixel_handler.set_pixel(UVec2::new(x as u32, y as u32), color);
         }
     }
 }
