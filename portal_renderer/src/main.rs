@@ -260,10 +260,12 @@ fn draw(
                             + (angle_up.to_degrees() * local_wall[1].z / 32.0);
 
                         // Add this walls depth to the sector
-                        sector.depth += Vec2::ZERO.distance(Vec2::new(
-                            (local_wall[0].x + local_wall[0].z) / 2.0,
-                            (local_wall[1].x + local_wall[1].x) / 2.0,
-                        ));
+                        if i == 0 {
+                            sector.depth += Vec2::ZERO.distance(Vec2::new(
+                                (local_wall[0].x + local_wall[0].z) / 2.0,
+                                (local_wall[1].x + local_wall[1].x) / 2.0,
+                            ));
+                        }
 
                         // If the local wall is behind the player we don't draw it
                         if local_wall[0].z < 0.0 && local_wall[1].z < 0.0 {
@@ -319,8 +321,11 @@ fn draw(
                             &mut x_points,
                         );
                     }
-                    // Get the average depth
-                    sector.depth /= sector.walls.len() as f32;
+
+                    if i == 0 {
+                        // Get the average depth
+                        sector.depth /= sector.walls.len() as f32;
+                    }
 
                     // Reverse the surface for tops or bottoms
                     match sector.surface {
