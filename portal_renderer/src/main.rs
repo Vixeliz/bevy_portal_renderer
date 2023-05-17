@@ -1,3 +1,5 @@
+use std::f32::consts::PI;
+
 use bevy::a11y::AccessibilityPlugin;
 use bevy::app::PluginGroupBuilder;
 use bevy::diagnostic::DiagnosticsPlugin;
@@ -160,22 +162,30 @@ fn move_player(
     time: Res<Time>,
 ) {
     if let Ok(mut transform) = player_query.get_single_mut() {
+        let (angle_up, angle, z_angle) = transform.rotation.to_euler(EulerRot::XYZ);
+        // Bevy returns half for some reason
+        let angle = angle * 2.0;
         let dt = time.delta_seconds();
-        let forward = transform.forward();
-        let right = transform.left();
         let speed = 50.0;
         let rotation_speed = 25.0;
+        let dx = angle.sin();
+        let dz = angle.cos();
+
         if keys.pressed(KeyCode::W) {
-            transform.translation -= forward * dt * speed;
+            transform.translation.x += dx;
+            transform.translation.z += dz;
         }
         if keys.pressed(KeyCode::S) {
-            transform.translation += forward * dt * speed;
+            transform.translation.x -= dx;
+            transform.translation.z -= dz;
         }
         if keys.pressed(KeyCode::D) {
-            transform.translation -= right * dt * speed;
+            transform.translation.x += dz;
+            transform.translation.z -= dx;
         }
         if keys.pressed(KeyCode::A) {
-            transform.translation += right * dt * speed;
+            transform.translation.x -= dz;
+            transform.translation.z += dx;
         }
         if keys.pressed(KeyCode::Space) {
             transform.translation.y += 4.0 * dt * speed;
@@ -184,14 +194,27 @@ fn move_player(
         if keys.pressed(KeyCode::C) {
             transform.translation.y -= 4.0 * dt * speed;
         }
-
+        let mut local_angle = angle.clone();
         if keys.pressed(KeyCode::Right) {
-            transform.rotate_y(0.05 * dt * rotation_speed);
+            // transform.rotate_y(0.05 * dt * rotation_speed);
+            local_angle += 0.05 * dt * rotation_speed;
         }
 
         if keys.pressed(KeyCode::Left) {
-            transform.rotate_y(-0.05 * dt * rotation_speed);
+            // transform.rotate_y(-0.05 * dt * rotation_speed);
+            local_angle -= 0.05 * dt * rotation_speed;
         }
+
+        if local_angle < -PI {
+            local_angle = PI;
+        }
+        if local_angle > PI {
+            local_angle = -PI;
+        }
+
+        let local_angle = local_angle / 2.0;
+
+        transform.rotation = Quat::from_euler(EulerRot::XYZ, angle_up, local_angle, z_angle);
 
         // if keys.pressed(KeyCode::Up) {
         //     transform.rotate_x(-0.05);
@@ -211,10 +234,10 @@ fn draw(
 ) {
     if let Ok(transform) = player_query.get_single() {
         let (angle_up, angle, _) = transform.rotation.to_euler(EulerRot::XYZ);
-
+        let angle = angle * 2.0;
         let player_cos = angle.cos();
         let player_sin = angle.sin();
-
+        println!("{}", angle.to_degrees());
         if let Some(mut level) = level_query.iter_mut().next() {
             // Sort the levels sectors from back to front
             bubble_sort(&mut level.sectors);
@@ -408,77 +431,77 @@ fn draw_wall(
     // Get distance between points
     if let Some(dyb) = position_two.y.checked_sub(position_one.y) {
         if let Some(dzb) = position_two.z.checked_sub(position_one.z) {
-            let mut dx = position_two.x - position_one.x;
-
-            // Prevent divide by zero
-            if dx == 0 {
-                dx = 1;
-            }
-
-            // Clip sides of screen
-            if position_one.x < 1 {
-                position_one.x = 1;
-            }
-
-            if position_two.x < 1 {
-                position_two.x = 1;
-            }
-
-            if position_one.x > (pixel_handler.width() - 1) as i32 {
-                position_one.x = (pixel_handler.width() - 1) as i32;
-            }
-
-            if position_two.x > (pixel_handler.width() - 1) as i32 {
-                position_two.x = (pixel_handler.width() - 1) as i32;
-            }
-
-            // Loop over the lines we have to draw for this wall
-            for x in position_one.x..position_two.x {
-                // Get screen y from the distances
-                let mut y1 = dyb * (x - position_one.x) / dx + position_one.y;
-                let mut y2 = dzb * (x - position_one.x) / dx + position_one.z;
-
-                // Clip top and bottom of screen
-                if y1 < 1 {
-                    y1 = 1;
+            if let Some(mut dx) = position_two.x.checked_sub(position_one.x) {
+                // Prevent divide by zero
+                if dx == 0 {
+                    dx = 1;
                 }
 
-                if y2 < 1 {
-                    y2 = 1;
+                // Clip sides of screen
+                if position_one.x < 1 {
+                    position_one.x = 1;
                 }
 
-                if y1 > (pixel_handler.height() - 1) as i32 {
-                    y1 = (pixel_handler.height() - 1) as i32;
+                if position_two.x < 1 {
+                    position_two.x = 1;
                 }
 
-                if y2 > (pixel_handler.height() - 1) as i32 {
-                    y2 = (pixel_handler.height() - 1) as i32;
+                if position_one.x > (pixel_handler.width() - 1) as i32 {
+                    position_one.x = (pixel_handler.width() - 1) as i32;
                 }
 
-                // Handle surfaces for top and bottom on first pass we save the points but don't draw
-                // second pass we actually draw
-                if surface == Surface::Bottom {
-                    x_points.insert(x as usize, y1);
-                    continue;
+                if position_two.x > (pixel_handler.width() - 1) as i32 {
+                    position_two.x = (pixel_handler.width() - 1) as i32;
                 }
-                if surface == Surface::Top {
-                    x_points.insert(x as usize, y2);
-                    continue;
-                }
-                if surface == Surface::BottomReverse {
-                    for i in x_points[x as usize]..y1 {
-                        pixel_handler.set_pixel(UVec2::new(x as u32, i as u32), floor_col);
+
+                // Loop over the lines we have to draw for this wall
+                for x in position_one.x..position_two.x {
+                    // Get screen y from the distances
+                    let mut y1 = dyb * (x - position_one.x) / dx + position_one.y;
+                    let mut y2 = dzb * (x - position_one.x) / dx + position_one.z;
+
+                    // Clip top and bottom of screen
+                    if y1 < 1 {
+                        y1 = 1;
                     }
-                }
-                if surface == Surface::TopReverse {
-                    for i in y2..x_points[x as usize] {
-                        pixel_handler.set_pixel(UVec2::new(x as u32, i as u32), roof_col);
-                    }
-                }
 
-                // Finally always draw the normal wall
-                for y in y1..y2 {
-                    pixel_handler.set_pixel(UVec2::new(x as u32, y as u32), color);
+                    if y2 < 1 {
+                        y2 = 1;
+                    }
+
+                    if y1 > (pixel_handler.height() - 1) as i32 {
+                        y1 = (pixel_handler.height() - 1) as i32;
+                    }
+
+                    if y2 > (pixel_handler.height() - 1) as i32 {
+                        y2 = (pixel_handler.height() - 1) as i32;
+                    }
+
+                    // Handle surfaces for top and bottom on first pass we save the points but don't draw
+                    // second pass we actually draw
+                    if surface == Surface::Bottom {
+                        x_points.insert(x as usize, y1);
+                        continue;
+                    }
+                    if surface == Surface::Top {
+                        x_points.insert(x as usize, y2);
+                        continue;
+                    }
+                    if surface == Surface::BottomReverse {
+                        for i in x_points[x as usize]..y1 {
+                            pixel_handler.set_pixel(UVec2::new(x as u32, i as u32), floor_col);
+                        }
+                    }
+                    if surface == Surface::TopReverse {
+                        for i in y2..x_points[x as usize] {
+                            pixel_handler.set_pixel(UVec2::new(x as u32, i as u32), roof_col);
+                        }
+                    }
+
+                    // Finally always draw the normal wall
+                    for y in y1..y2 {
+                        pixel_handler.set_pixel(UVec2::new(x as u32, y as u32), color);
+                    }
                 }
             }
         }
