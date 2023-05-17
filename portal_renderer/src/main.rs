@@ -414,6 +414,7 @@ fn draw_wall(
     // Loop over the lines we have to draw for this wall
     for x in position_one.x..position_two.x {
         // Get screen y from the distances
+        // Figure out a better way to prevent overflows
         let mut y1 = (dyb as i64 * (x as i64 - position_one.x as i64) / dx as i64
             + position_one.y as i64) as i32;
         let mut y2 = (dzb as i64 * (x as i64 - position_one.x as i64) / dx as i64
