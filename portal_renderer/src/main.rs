@@ -195,16 +195,24 @@ fn move_player(
             transform.translation.y -= 4.0 * dt * speed;
         }
         let mut local_angle = angle.clone();
+        let mut local_angle_up = angle_up.clone();
         if keys.pressed(KeyCode::Right) {
-            // transform.rotate_y(0.05 * dt * rotation_speed);
             local_angle += 0.05 * dt * rotation_speed;
         }
 
         if keys.pressed(KeyCode::Left) {
-            // transform.rotate_y(-0.05 * dt * rotation_speed);
             local_angle -= 0.05 * dt * rotation_speed;
         }
 
+        if keys.pressed(KeyCode::Up) {
+            local_angle_up -= 0.05 * dt * rotation_speed;
+        }
+
+        if keys.pressed(KeyCode::Down) {
+            local_angle_up += 0.05 * dt * rotation_speed;
+        }
+
+        // Wrap around
         if local_angle < -PI {
             local_angle = PI;
         }
@@ -212,17 +220,11 @@ fn move_player(
             local_angle = -PI;
         }
 
+        local_angle_up = local_angle_up.clamp(-PI / 2.0, PI / 2.0);
+
         let local_angle = local_angle / 2.0;
 
-        transform.rotation = Quat::from_euler(EulerRot::XYZ, angle_up, local_angle, z_angle);
-
-        // if keys.pressed(KeyCode::Up) {
-        //     transform.rotate_x(-0.05);
-        // }
-
-        // if keys.pressed(KeyCode::Down) {
-        //     transform.rotate_x(0.05);
-        // }
+        transform.rotation = Quat::from_euler(EulerRot::XYZ, local_angle_up, local_angle, z_angle);
     }
 }
 
@@ -235,6 +237,7 @@ fn draw(
     if let Ok(transform) = player_query.get_single() {
         let (angle_up, angle, _) = transform.rotation.to_euler(EulerRot::XYZ);
         let angle = angle * 2.0;
+        let angle_up = angle_up * 2.0;
         let player_cos = angle.cos();
         let player_sin = angle.sin();
         println!("{}", angle.to_degrees());
