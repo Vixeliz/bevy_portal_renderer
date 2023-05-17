@@ -240,7 +240,6 @@ fn draw(
         let angle_up = angle_up * 2.0;
         let player_cos = angle.cos();
         let player_sin = angle.sin();
-        println!("{}", angle.to_degrees());
         if let Some(mut level) = level_query.iter_mut().next() {
             // Sort the levels sectors from back to front
             bubble_sort(&mut level.sectors);
