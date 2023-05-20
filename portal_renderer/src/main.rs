@@ -273,7 +273,7 @@ fn draw(
                         // Add this walls depth to the sector
                         sector.depth += Vec2::ZERO.distance(Vec2::new(
                             (local_wall[0].x + local_wall[0].z) / 2.0,
-                            (local_wall[1].x + local_wall[1].x) / 2.0,
+                            (local_wall[1].x + local_wall[1].z) / 2.0,
                         ));
 
                         // If the local wall is behind the player we don't draw it
@@ -298,25 +298,26 @@ fn draw(
                             clip_behind(&mut t2, &mut t1);
                         }
 
+                        let fov = 90.0;
                         // Transform wall to screen coordinates
                         let (scr_x1, scr_y1) = (
-                            b1.x * 200.0 / b1.z + (pixel_handler.width() / 2) as f32,
-                            b1.y * 200.0 / b1.z + (pixel_handler.height() / 2) as f32,
+                            b1.x * fov / b1.z + (pixel_handler.width() / 2) as f32,
+                            b1.y * fov / b1.z + (pixel_handler.height() / 2) as f32,
                         );
 
                         let (scr_x2, scr_y2) = (
-                            b2.x * 200.0 / b2.z + (pixel_handler.width() / 2) as f32,
-                            b2.y * 200.0 / b2.z + (pixel_handler.height() / 2) as f32,
+                            b2.x * fov / b2.z + (pixel_handler.width() / 2) as f32,
+                            b2.y * fov / b2.z + (pixel_handler.height() / 2) as f32,
                         );
 
                         let (_, scr_y3) = (
-                            t1.x * 200.0 / t1.z + (pixel_handler.width() / 2) as f32,
-                            t1.y * 200.0 / t1.z + (pixel_handler.height() / 2) as f32,
+                            t1.x * fov / t1.z + (pixel_handler.width() / 2) as f32,
+                            t1.y * fov / t1.z + (pixel_handler.height() / 2) as f32,
                         );
 
                         let (_, scr_y4) = (
-                            t2.x * 200.0 / t2.z + (pixel_handler.width() / 2) as f32,
-                            t2.y * 200.0 / t2.z + (pixel_handler.height() / 2) as f32,
+                            t2.x * fov / t2.z + (pixel_handler.width() / 2) as f32,
+                            t2.y * fov / t2.z + (pixel_handler.height() / 2) as f32,
                         );
 
                         // Finally draw the wall
