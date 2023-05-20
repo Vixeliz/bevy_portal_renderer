@@ -428,34 +428,13 @@ fn draw_wall(
             y2 = (pixel_handler.height() - 1) as i32;
         }
 
-        // Handle surfaces for top and bottom on first pass we save the points but don't draw
-        // second pass we actually draw
-        // if surface == Surface::Bottom {
-        //     x_points.insert(x as usize, y1);
-        //     continue;
-        // }
-        // if surface == Surface::Top {
-        //     x_points.insert(x as usize, y2);
-        //     continue;
-        // }
-        // if surface == Surface::BottomReverse {
-        //     for i in x_points[x as usize]..y1 {
-        //         pixel_handler.set_pixel(UVec2::new(x as u32, i as u32), floor_col);
-        //     }
-        // }
-        // if surface == Surface::TopReverse {
-        //     for i in y2..x_points[x as usize] {
-        //         pixel_handler.set_pixel(UVec2::new(x as u32, i as u32), roof_col);
-        //     }
-        //
-
         // Draw front wall
         if front_back == 0 {
             if surface == Surface::Bottom {
-                x_points.insert(x as usize, y1 as u32);
+                x_points[x as usize] = y1 as u32;
             }
             if surface == Surface::Top {
-                x_points.insert(x as usize, y2 as u32);
+                x_points[x as usize] = y2 as u32;
             }
             // Finally always draw the normal wall
             for y in y1..y2 {
