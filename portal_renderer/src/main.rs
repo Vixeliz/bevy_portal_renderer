@@ -4,6 +4,9 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 use bevy_pixel_buffer::prelude::*;
 use portal_common::prelude::*;
 
+#[derive(Resource, Deref, DerefMut)]
+struct WallImage(pub Handle<Image>);
+
 #[derive(Component)]
 struct Viewpoint;
 
@@ -59,7 +62,8 @@ fn clear(mut pixel_handler: PixelHandler) {
     pixel_handler.clear(PixColor(0, 0, 0, 255));
 }
 
-fn setup(mut commands: Commands) {
+fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+    commands.insert_resource(WallImage(asset_server.load("Bricks_01-128x128.png")));
     commands.spawn((Transform::from_xyz(70.0, 20.0, -110.0), Viewpoint));
     let mut level = Level::default();
     let mut sector = Sector::new(0.0, 10.0);
@@ -186,9 +190,18 @@ fn draw(
     mut pixel_handler: PixelHandler,
     player_query: Query<&Transform, With<Viewpoint>>,
     // mut sectors: ResMut<Sectors>,
+    wall_handle: Res<WallImage>,
     mut level_query: Query<&mut Level>,
 ) {
     if let Ok(transform) = player_query.get_single() {
+        if let Some(image) = pixel_handler
+            .pixel_wrapper
+            .images()
+            .get(&*wall_handle)
+            .cloned()
+        {
+            test_textures(&image, &mut pixel_handler);
+        }
         let (angle_up, angle, _) = transform.rotation.to_euler(EulerRot::XYZ);
         let angle = angle * 2.0;
         let angle_up = angle_up * 2.0;
@@ -456,6 +469,18 @@ fn draw_wall(
             for y in y1..y2 {
                 pixel_handler.set_pixel(UVec2::new(x as u32, y as u32), color);
             }
+        }
+    }
+}
+
+fn test_textures(image: &Image, pixel_handler: &mut PixelHandler) {
+    for y in 0..image.size().y as u32 {
+        for x in 0..image.size().x as u32 {
+            let pixel = (y * 8 * image.size().x as u32 + x * 8) as usize;
+            let r = ((image.data[pixel + 0] as u16) << 8) | image.data[pixel + 1] as u16;
+            let g = ((image.data[pixel + 2] as u16) << 8) | image.data[pixel + 3] as u16;
+            let b = ((image.data[pixel + 4] as u16) << 8) | image.data[pixel + 5] as u16;
+            pixel_handler.set_pixel(UVec2::new(x, y), PixColor(r as u8, g as u8, b as u8, 255));
         }
     }
 }
