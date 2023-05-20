@@ -1,4 +1,4 @@
-use std::f32::consts::PI;
+use std::{f32::consts::PI, mem::swap};
 
 use bevy::{ecs::system::SystemParam, prelude::*};
 use bevy_pixel_buffer::prelude::*;
@@ -148,8 +148,8 @@ fn move_player(
         if keys.pressed(KeyCode::C) {
             transform.translation.y -= 4.0 * dt * speed;
         }
-        let mut local_angle = angle.clone();
-        let mut local_angle_up = angle_up.clone();
+        let mut local_angle = angle;
+        let mut local_angle_up = angle_up;
         if keys.pressed(KeyCode::Right) {
             local_angle += 0.05 * dt * rotation_speed;
         }
@@ -199,17 +199,13 @@ fn draw(
             bubble_sort(&mut level.sectors);
             level.sectors.reverse();
             for sector in level.sectors.iter_mut() {
-                // Temp vector to hold row of pixels for filling bottom or top
-                // let mut x_points = vec![0; pixel_handler.width() as usize];
-
                 // Reset sector depth
                 sector.depth = 0.0;
 
                 // Set what surface we are rendering based off of player location relative to this sector
                 let cycles = if transform.translation.y < sector.floor {
                     sector.surface = Surface::Bottom;
-                    sector.x_points =
-                        vec![pixel_handler.height() as u32; pixel_handler.width() as usize];
+                    sector.x_points = vec![pixel_handler.height(); pixel_handler.width() as usize];
                     2
                 } else if transform.translation.y > sector.roof {
                     sector.surface = Surface::Top;
@@ -239,12 +235,8 @@ fn draw(
 
                         // When we are on back edge of wall flip points
                         if i == 1 {
-                            let mut swp = x1;
-                            x1 = x2;
-                            x2 = swp;
-                            swp = z1;
-                            z1 = z2;
-                            z2 = swp;
+                            swap(&mut x1, &mut x2);
+                            swap(&mut z1, &mut z2);
                         }
 
                         // Use player rotation to adjust the points of the wall
@@ -297,23 +289,23 @@ fn draw(
 
                         // Transform wall to screen coordinates
                         let (scr_x1, scr_y1) = (
-                            b1.x as f32 * 200.0 / b1.z as f32 + (pixel_handler.width() / 2) as f32,
-                            b1.y as f32 * 200.0 / b1.z as f32 + (pixel_handler.height() / 2) as f32,
+                            b1.x * 200.0 / b1.z + (pixel_handler.width() / 2) as f32,
+                            b1.y * 200.0 / b1.z + (pixel_handler.height() / 2) as f32,
                         );
 
                         let (scr_x2, scr_y2) = (
-                            b2.x as f32 * 200.0 / b2.z as f32 + (pixel_handler.width() / 2) as f32,
-                            b2.y as f32 * 200.0 / b2.z as f32 + (pixel_handler.height() / 2) as f32,
+                            b2.x * 200.0 / b2.z + (pixel_handler.width() / 2) as f32,
+                            b2.y * 200.0 / b2.z + (pixel_handler.height() / 2) as f32,
                         );
 
                         let (_, scr_y3) = (
-                            t1.x as f32 * 200.0 / t1.z as f32 + (pixel_handler.width() / 2) as f32,
-                            t1.y as f32 * 200.0 / t1.z as f32 + (pixel_handler.height() / 2) as f32,
+                            t1.x * 200.0 / t1.z + (pixel_handler.width() / 2) as f32,
+                            t1.y * 200.0 / t1.z + (pixel_handler.height() / 2) as f32,
                         );
 
                         let (_, scr_y4) = (
-                            t2.x as f32 * 200.0 / t2.z as f32 + (pixel_handler.width() / 2) as f32,
-                            t2.y as f32 * 200.0 / t2.z as f32 + (pixel_handler.height() / 2) as f32,
+                            t2.x * 200.0 / t2.z + (pixel_handler.width() / 2) as f32,
+                            t2.y * 200.0 / t2.z + (pixel_handler.height() / 2) as f32,
                         );
 
                         // Finally draw the wall
@@ -321,9 +313,8 @@ fn draw(
                             IVec3::new(scr_x1 as i32, scr_y1 as i32, scr_y3 as i32),
                             IVec3::new(scr_x2 as i32, scr_y2 as i32, scr_y4 as i32),
                             &mut pixel_handler,
-                            wall.color,
                             sector.surface,
-                            (sector.roof_col, sector.floor_col),
+                            (wall.color, sector.roof_col, sector.floor_col),
                             &mut sector.x_points,
                             i,
                         );
@@ -333,17 +324,6 @@ fn draw(
                         // Get the average depth
                         sector.depth /= sector.walls.len() as f32;
                     }
-
-                    // Reverse the surface for tops or bottoms
-                    // match sector.surface {
-                    //     Surface::Top => {
-                    //         sector.surface = Surface::TopReverse;
-                    //     }
-                    //     Surface::Bottom => {
-                    //         sector.surface = Surface::BottomReverse;
-                    //     }
-                    //     _ => {}
-                    // }
                 }
             }
         }
@@ -388,14 +368,13 @@ fn draw_wall(
     position_one: IVec3,
     position_two: IVec3,
     pixel_handler: &mut PixelHandler,
-    color: PixColor,
     surface: Surface,
-    (roof_col, floor_col): (PixColor, PixColor),
+    (color, roof_col, floor_col): (PixColor, PixColor, PixColor),
     x_points: &mut Vec<u32>,
     front_back: usize,
 ) {
-    let mut position_one = position_one.clone();
-    let mut position_two = position_two.clone();
+    let mut position_one = position_one;
+    let mut position_two = position_two;
 
     // Get distance between points
     let dyb = position_two.y.wrapping_sub(position_one.y);

@@ -40,11 +40,13 @@ fn main() {
 }
 
 fn setup(mut commands: Commands) {
-    let mut bundle = Camera2dBundle::default();
-    let mut projection = OrthographicProjection::default();
-    projection.scale = 0.5;
-    bundle.projection = projection;
-    commands.spawn(bundle);
+    commands.spawn(Camera2dBundle {
+        projection: OrthographicProjection {
+            scale: 0.5,
+            ..default()
+        },
+        ..default()
+    });
 }
 
 fn handle_input(
@@ -73,10 +75,9 @@ fn handle_input(
                                 && rounded_pos.x as f32 <= point.x as f32 + lean
                                 && rounded_pos.y as f32 >= point.y as f32 - lean
                                 && rounded_pos.y as f32 <= point.y as f32 + lean
+                                && idx == copied_array.len() - 1
                             {
-                                if idx == copied_array.len() - 1 {
-                                    editor_state.points.remove(idx);
-                                }
+                                editor_state.points.remove(idx);
                             }
                         }
                     }
@@ -92,7 +93,7 @@ fn handle_input(
                             editor_state.points.push(rounded_pos);
                         } else {
                             // if let Some(last) = editor_state.points.last() {
-                            let point = editor_state.points[0].clone();
+                            let point = editor_state.points[0];
                             if rounded_pos.x as f32 >= point.x as f32 - lean
                                 && rounded_pos.x as f32 <= point.x as f32 + lean
                                 && rounded_pos.y as f32 >= point.y as f32 - lean
@@ -138,7 +139,7 @@ fn editor_ui(mut contexts: EguiContexts, mut editor_state: ResMut<EditorState>) 
 fn draw(
     editor_state: Res<EditorState>,
     mut lines: ResMut<DebugLines>,
-    mut level: ResMut<EditingLevel>,
+    level: ResMut<EditingLevel>,
 ) {
     for point in editor_state.points.iter() {
         draw_point(&mut lines, point.clone().as_vec2());
