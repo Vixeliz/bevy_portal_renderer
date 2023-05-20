@@ -200,22 +200,28 @@ fn draw(
             level.sectors.reverse();
             for sector in level.sectors.iter_mut() {
                 // Temp vector to hold row of pixels for filling bottom or top
-                let mut x_points = vec![0; pixel_handler.width() as usize];
+                // let mut x_points = vec![0; pixel_handler.width() as usize];
 
                 // Reset sector depth
                 sector.depth = 0.0;
 
                 // Set what surface we are rendering based off of player location relative to this sector
-                if transform.translation.y < sector.floor {
+                let cycles = if transform.translation.y < sector.floor {
                     sector.surface = Surface::Bottom;
+                    sector.x_points =
+                        vec![pixel_handler.height() as u32; pixel_handler.width() as usize];
+                    2
                 } else if transform.translation.y > sector.roof {
                     sector.surface = Surface::Top;
+                    sector.x_points = vec![0; pixel_handler.width() as usize];
+                    2
                 } else {
                     sector.surface = Surface::Normal;
-                }
+                    1
+                };
 
                 // Two loops are needed for filling in top and bottoms
-                for i in 0..2 {
+                for i in 0..cycles {
                     // Loop through the sector walls
                     for wall in sector.walls.iter() {
                         // Temporary local_wall varibale
@@ -231,8 +237,8 @@ fn draw(
                         let mut x2 = wall.points[1].x - transform.translation.x;
                         let mut z2 = wall.points[1].y - transform.translation.z;
 
-                        // If first loop we swap variables
-                        if i == 0 {
+                        // When we are on back edge of wall flip points
+                        if i == 1 {
                             let mut swp = x1;
                             x1 = x2;
                             x2 = swp;
@@ -318,7 +324,8 @@ fn draw(
                             wall.color,
                             sector.surface,
                             (sector.roof_col, sector.floor_col),
-                            &mut x_points,
+                            &mut sector.x_points,
+                            i,
                         );
                     }
 
@@ -328,15 +335,15 @@ fn draw(
                     }
 
                     // Reverse the surface for tops or bottoms
-                    match sector.surface {
-                        Surface::Top => {
-                            sector.surface = Surface::TopReverse;
-                        }
-                        Surface::Bottom => {
-                            sector.surface = Surface::BottomReverse;
-                        }
-                        _ => {}
-                    }
+                    // match sector.surface {
+                    //     Surface::Top => {
+                    //         sector.surface = Surface::TopReverse;
+                    //     }
+                    //     Surface::Bottom => {
+                    //         sector.surface = Surface::BottomReverse;
+                    //     }
+                    //     _ => {}
+                    // }
                 }
             }
         }
@@ -384,7 +391,8 @@ fn draw_wall(
     color: PixColor,
     surface: Surface,
     (roof_col, floor_col): (PixColor, PixColor),
-    x_points: &mut Vec<i32>,
+    x_points: &mut Vec<u32>,
+    front_back: usize,
 ) {
     let mut position_one = position_one.clone();
     let mut position_two = position_two.clone();
@@ -400,12 +408,12 @@ fn draw_wall(
     }
 
     // Clip sides of screen
-    if position_one.x < 1 {
-        position_one.x = 1;
+    if position_one.x < 0 {
+        position_one.x = 0;
     }
 
-    if position_two.x < 1 {
-        position_two.x = 1;
+    if position_two.x < 0 {
+        position_two.x = 0;
     }
 
     if position_one.x > (pixel_handler.width() - 1) as i32 {
@@ -425,12 +433,12 @@ fn draw_wall(
         let mut y2 = (dzb as i64 * (x as i64 - position_one.x as i64) / dx as i64
             + position_one.z as i64) as i32;
         // Clip top and bottom of screen
-        if y1 < 1 {
-            y1 = 1;
+        if y1 < 0 {
+            y1 = 0;
         }
 
-        if y2 < 1 {
-            y2 = 1;
+        if y2 < 0 {
+            y2 = 0;
         }
 
         if y1 > (pixel_handler.height() - 1) as i32 {
@@ -443,28 +451,53 @@ fn draw_wall(
 
         // Handle surfaces for top and bottom on first pass we save the points but don't draw
         // second pass we actually draw
-        if surface == Surface::Bottom {
-            x_points.insert(x as usize, y1);
-            continue;
-        }
-        if surface == Surface::Top {
-            x_points.insert(x as usize, y2);
-            continue;
-        }
-        if surface == Surface::BottomReverse {
-            for i in x_points[x as usize]..y1 {
-                pixel_handler.set_pixel(UVec2::new(x as u32, i as u32), floor_col);
+        // if surface == Surface::Bottom {
+        //     x_points.insert(x as usize, y1);
+        //     continue;
+        // }
+        // if surface == Surface::Top {
+        //     x_points.insert(x as usize, y2);
+        //     continue;
+        // }
+        // if surface == Surface::BottomReverse {
+        //     for i in x_points[x as usize]..y1 {
+        //         pixel_handler.set_pixel(UVec2::new(x as u32, i as u32), floor_col);
+        //     }
+        // }
+        // if surface == Surface::TopReverse {
+        //     for i in y2..x_points[x as usize] {
+        //         pixel_handler.set_pixel(UVec2::new(x as u32, i as u32), roof_col);
+        //     }
+        //
+
+        // Draw front wall
+        if front_back == 0 {
+            if surface == Surface::Bottom {
+                x_points.insert(x as usize, y1 as u32);
             }
-        }
-        if surface == Surface::TopReverse {
-            for i in y2..x_points[x as usize] {
-                pixel_handler.set_pixel(UVec2::new(x as u32, i as u32), roof_col);
+            if surface == Surface::Top {
+                x_points.insert(x as usize, y2 as u32);
+            }
+            // Finally always draw the normal wall
+            for y in y1..y2 {
+                pixel_handler.set_pixel(UVec2::new(x as u32, y as u32), color);
             }
         }
 
-        // Finally always draw the normal wall
-        for y in y1..y2 {
-            pixel_handler.set_pixel(UVec2::new(x as u32, y as u32), color);
+        // Draw back wall and surface
+        if front_back == 1 {
+            let mut color = color;
+            if surface == Surface::Bottom {
+                y2 = x_points[x as usize] as i32;
+                color = roof_col;
+            }
+            if surface == Surface::Top {
+                y1 = x_points[x as usize] as i32;
+                color = floor_col;
+            }
+            for y in y1..y2 {
+                pixel_handler.set_pixel(UVec2::new(x as u32, y as u32), color);
+            }
         }
     }
 }

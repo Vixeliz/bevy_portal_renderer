@@ -36,8 +36,6 @@ pub enum Surface {
     Top,
     Bottom,
     Normal,
-    TopReverse,
-    BottomReverse,
 }
 
 pub struct Sector {
@@ -49,6 +47,7 @@ pub struct Sector {
     pub roof_col: PixColor,
     pub floor_col: PixColor,
     pub surface: Surface,
+    pub x_points: Vec<u32>,
 }
 
 impl Ord for Sector {
@@ -82,6 +81,7 @@ impl Sector {
             roof_col: PixColor(0, 0, 255, 255),
             floor_col: PixColor(0, 255, 0, 255),
             surface: Surface::Normal,
+            x_points: vec![0; 240 * 360],
         }
     }
 
