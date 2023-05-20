@@ -109,6 +109,7 @@ fn handle_input(
                                         let wall = Wall {
                                             points: [a.as_vec2(), b.as_vec2()],
                                             color: PixColor(255, 255, 255, 255),
+                                            uv: Vec2::ONE,
                                         };
                                         sector.walls.push(wall);
                                     });

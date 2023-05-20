@@ -90,18 +90,18 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     level.sectors.push(sector);
     let mut sector = Sector::new(10.0, 40.0);
     sector.add_wall(
-        Vec2::new(30.0, 50.0),
+        Vec2::new(30.0, 150.0),
         Vec2::new(30.0, 30.0),
         PixColor(200, 0, 0, 255),
     );
     sector.add_wall(
-        Vec2::new(50.0, 50.0),
-        Vec2::new(30.0, 50.0),
+        Vec2::new(50.0, 150.0),
+        Vec2::new(30.0, 150.0),
         PixColor(255, 0, 0, 255),
     );
     sector.add_wall(
         Vec2::new(50.0, 30.0),
-        Vec2::new(50.0, 50.0),
+        Vec2::new(50.0, 150.0),
         PixColor(200, 0, 0, 255),
     );
     sector.add_wall(
@@ -194,14 +194,14 @@ fn draw(
     mut level_query: Query<&mut Level>,
 ) {
     if let Ok(transform) = player_query.get_single() {
-        if let Some(image) = pixel_handler
-            .pixel_wrapper
-            .images()
-            .get(&*wall_handle)
-            .cloned()
-        {
-            test_textures(&image, &mut pixel_handler);
-        }
+        // if let Some(image) = pixel_handler
+        //     .pixel_wrapper
+        //     .images()
+        //     .get(&*wall_handle)
+        //     .cloned()
+        // {
+        //     test_textures(&image, &mut pixel_handler);
+        // }
         let (angle_up, angle, _) = transform.rotation.to_euler(EulerRot::XYZ);
         let angle = angle * 2.0;
         let angle_up = angle_up * 2.0;
@@ -271,12 +271,10 @@ fn draw(
                             + (angle_up.to_degrees() * local_wall[1].z / 32.0);
 
                         // Add this walls depth to the sector
-                        if i == 0 {
-                            sector.depth += Vec2::ZERO.distance(Vec2::new(
-                                (local_wall[0].x + local_wall[0].z) / 2.0,
-                                (local_wall[1].x + local_wall[1].x) / 2.0,
-                            ));
-                        }
+                        sector.depth += Vec2::ZERO.distance(Vec2::new(
+                            (local_wall[0].x + local_wall[0].z) / 2.0,
+                            (local_wall[1].x + local_wall[1].x) / 2.0,
+                        ));
 
                         // If the local wall is behind the player we don't draw it
                         if local_wall[0].z < 0.0 && local_wall[1].z < 0.0 {
@@ -322,15 +320,23 @@ fn draw(
                         );
 
                         // Finally draw the wall
-                        draw_wall(
-                            IVec3::new(scr_x1 as i32, scr_y1 as i32, scr_y3 as i32),
-                            IVec3::new(scr_x2 as i32, scr_y2 as i32, scr_y4 as i32),
-                            &mut pixel_handler,
-                            sector.surface,
-                            (wall.color, sector.roof_col, sector.floor_col),
-                            &mut sector.x_points,
-                            i,
-                        );
+
+                        if let Some(image) = pixel_handler
+                            .pixel_wrapper
+                            .images()
+                            .get(&*wall_handle)
+                            .cloned()
+                        {
+                            draw_wall(
+                                IVec3::new(scr_x1 as i32, scr_y1 as i32, scr_y3 as i32),
+                                IVec3::new(scr_x2 as i32, scr_y2 as i32, scr_y4 as i32),
+                                &mut pixel_handler,
+                                (sector.surface, wall.uv),
+                                (wall.color, image.clone(), image.clone(), image),
+                                &mut sector.x_points,
+                                i,
+                            );
+                        }
                     }
 
                     if i == 0 {
@@ -381,11 +387,16 @@ fn draw_wall(
     position_one: IVec3,
     position_two: IVec3,
     pixel_handler: &mut PixelHandler,
-    surface: Surface,
-    (color, roof_col, floor_col): (PixColor, PixColor, PixColor),
+    (surface, uv): (Surface, Vec2),
+    (color, wall_image, floor_image, roof_image): (PixColor, Image, Image, Image),
     x_points: &mut Vec<u32>,
     front_back: usize,
 ) {
+    // Horizontal step for normal surface
+    let mut ht = 0.0;
+    let ht_step =
+        wall_image.size().x as f32 * uv.x / (position_two.x as f32 - position_one.x as f32);
+
     let mut position_one = position_one;
     let mut position_two = position_two;
 
@@ -401,6 +412,7 @@ fn draw_wall(
 
     // Clip sides of screen
     if position_one.x < 0 {
+        ht -= ht_step * position_one.x as f32;
         position_one.x = 0;
     }
 
@@ -424,8 +436,14 @@ fn draw_wall(
             + position_one.y as i64) as i32;
         let mut y2 = (dzb as i64 * (x as i64 - position_one.x as i64) / dx as i64
             + position_one.z as i64) as i32;
+
+        // Vertical step for normal surface
+        let mut vt = 0.0;
+        let vt_step = wall_image.size().y as f32 * uv.y / (y2 as f32 - y1 as f32);
+
         // Clip top and bottom of screen
         if y1 < 0 {
+            vt -= vt_step * y1 as f32;
             y1 = 0;
         }
 
@@ -451,8 +469,12 @@ fn draw_wall(
             }
             // Finally always draw the normal wall
             for y in y1..y2 {
-                pixel_handler.set_pixel(UVec2::new(x as u32, y as u32), color);
+                let (r, g, b) = image_rgb_u8(&wall_image, UVec2::new(ht as u32, vt as u32));
+                vt += vt_step;
+
+                pixel_handler.set_pixel(UVec2::new(x as u32, y as u32), PixColor(r, g, b, 255));
             }
+            ht += ht_step;
         }
 
         // Draw back wall and surface
@@ -460,11 +482,11 @@ fn draw_wall(
             let mut color = color;
             if surface == Surface::Bottom {
                 y2 = x_points[x as usize] as i32;
-                color = roof_col;
+                // color = roof_col;
             }
             if surface == Surface::Top {
                 y1 = x_points[x as usize] as i32;
-                color = floor_col;
+                // color = floor_col;
             }
             for y in y1..y2 {
                 pixel_handler.set_pixel(UVec2::new(x as u32, y as u32), color);
@@ -473,14 +495,26 @@ fn draw_wall(
     }
 }
 
-fn test_textures(image: &Image, pixel_handler: &mut PixelHandler) {
-    for y in 0..image.size().y as u32 {
-        for x in 0..image.size().x as u32 {
-            let pixel = (y * 8 * image.size().x as u32 + x * 8) as usize;
-            let r = ((image.data[pixel + 0] as u16) << 8) | image.data[pixel + 1] as u16;
-            let g = ((image.data[pixel + 2] as u16) << 8) | image.data[pixel + 3] as u16;
-            let b = ((image.data[pixel + 4] as u16) << 8) | image.data[pixel + 5] as u16;
-            pixel_handler.set_pixel(UVec2::new(x, y), PixColor(r as u8, g as u8, b as u8, 255));
-        }
-    }
+fn image_rgb_u8(image: &Image, step: UVec2) -> (u8, u8, u8) {
+    let pixel = ((image.size().y as u32 - step.y.rem_euclid(image.size().y as u32) - 1)
+        * 8
+        * image.size().x as u32
+        + (step.x.rem_euclid(image.size().x as u32) * 8)) as usize;
+    let r = ((image.data[pixel + 0] as u16) << 8) | image.data[pixel + 1] as u16;
+    let g = ((image.data[pixel + 2] as u16) << 8) | image.data[pixel + 3] as u16;
+    let b = ((image.data[pixel + 4] as u16) << 8) | image.data[pixel + 5] as u16;
+    (r as u8, g as u8, b as u8)
 }
+
+// fn test_textures(image: &Image, pixel_handler: &mut PixelHandler) {
+//     for y in 0..image.size().y as u32 {
+//         for x in 0..image.size().x as u32 {
+//             let pixel =
+//                 ((image.size().y as u32 - y - 1) * 8 * image.size().x as u32 + x * 8) as usize;
+//             let r = ((image.data[pixel + 0] as u16) << 8) | image.data[pixel + 1] as u16;
+//             let g = ((image.data[pixel + 2] as u16) << 8) | image.data[pixel + 3] as u16;
+//             let b = ((image.data[pixel + 4] as u16) << 8) | image.data[pixel + 5] as u16;
+//             pixel_handler.set_pixel(UVec2::new(x, y), PixColor(r as u8, g as u8, b as u8, 255));
+//         }
+//     }
+// }

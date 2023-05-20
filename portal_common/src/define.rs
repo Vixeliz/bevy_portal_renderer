@@ -29,6 +29,7 @@ impl From<PixColor> for Pixel {
 pub struct Wall {
     pub points: [Vec2; 2],
     pub color: PixColor, // height: f32,
+    pub uv: Vec2,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -89,6 +90,8 @@ impl Sector {
         self.walls.push(Wall {
             points: [bottom_one, bottom_two],
             color,
+            uv: Vec2::new(5.0, 1.0), // Should be calculated in editor
+                                     // uv: Vec2::ONE,
         });
     }
 }
